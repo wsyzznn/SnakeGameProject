@@ -1,0 +1,85 @@
+module SnakeGame {
+
+    // 玩家输入（前端 -> 后台）
+    struct PlayerInput {
+        string player_id;         // 玩家ID
+        string direction;         // "UP", "DOWN", "LEFT", "RIGHT"
+        long timestamp;           // 时间戳
+    };
+
+    // 游戏状态（后台 -> 前端）
+    struct GameState {
+        string player_id;
+        sequence<long> snake_x;   // 蛇身体每个节点的X坐标
+        sequence<long> snake_y;   // 蛇身体每个节点的Y坐标
+        long length;              // 蛇长度
+        long score;               // 分数
+    };
+
+    // 食物（后台 -> 前端）
+    struct Food {
+        long food_id;
+        long x;
+        long y;
+        string color;             // 食物颜色
+    };
+
+    // 系统消息（双向）
+    struct SystemMsg {
+        string msg_type;          // "JOIN", "EXIT", "START", "END"
+        string content;           // 消息内容
+        long timestamp;
+    };
+
+    // 玩家信息（前端 -> 后台）
+    struct PlayerInfo {
+        string player_id;
+        string nickname;
+        string color;             // 蛇颜色
+    };
+
+    // 排行榜（后台 -> 前端）
+    struct LeaderboardEntry {
+        string player_id;
+        string nickname;
+        long score;
+    };
+    struct Leaderboard {
+        sequence<LeaderboardEntry> entries;
+    };
+
+    // 道具（后台 -> 前端）
+    struct Item {
+        long item_id;
+        string item_type;         // "SPEEDUP", "GOOD_FOOD", "BAD_FOOD"
+        long x;
+        long y;
+    };
+
+    // 碰撞事件（后台 -> 前端）
+    struct Collision {
+        string player_id;
+        string collision_type;    // "WALL", "SELF", "OTHER"
+        string target_id;         // 若与他人相撞，记录对方ID
+    };
+
+    // 游戏设置（后台 -> 前端）
+    struct GameSetting {
+        long speed;               // 游戏速度
+        long grid_size;           // 网格大小
+    };
+
+    // 聊天消息（双向）
+    struct ChatMsg {
+        string player_id;
+        string nickname;
+        string content;
+        long timestamp;
+    };
+
+    // 房间号（双向）
+    struct RoomInfo {
+        string room_id;
+        sequence<string> player_ids;
+    };
+};
