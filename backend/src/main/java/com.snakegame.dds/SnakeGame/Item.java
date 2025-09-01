@@ -3,7 +3,7 @@ package com.snakegame.dds.SnakeGame;
 
 public class Item{
     public int item_id = 0;// @ID(0)
-    public SnakeGame.ItemType item_type = new SnakeGame.ItemType();// @ID(1)
+    public ItemType item_type = new ItemType();// @ID(1)
     public int x = 0;// @ID(2)
     public int y = 0;// @ID(3)
     public String image_id = "";// @ID(4)

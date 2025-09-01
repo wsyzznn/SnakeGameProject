@@ -2,7 +2,7 @@ package com.snakegame.dds.SnakeGame;
 
 
 public class Leaderboard{
-    public SnakeGame.LeaderboardEntrySeq entries = new SnakeGame.LeaderboardEntrySeq();// @ID(0)
+    public LeaderboardEntrySeq entries = new LeaderboardEntrySeq();// @ID(0)
 
     public Leaderboard(){
 
