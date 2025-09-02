@@ -8,7 +8,7 @@ import java.util.*;
 public class MockGameDriver {
 
     public static void main(String[] args) throws InterruptedException {
-        GameController controller = new GameController();
+        GameController controller = new GameController(80);
 
         // ====== 创建测试配置 ======
         GameSetting setting = new GameSetting();

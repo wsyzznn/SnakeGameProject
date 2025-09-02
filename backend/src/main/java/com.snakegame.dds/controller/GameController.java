@@ -4,45 +4,41 @@ import com.snakegame.dds.model.Point;
 import com.snakegame.dds.model.Snake;
 import com.snakegame.dds.service.GameService;
 import com.snakegame.dds.SnakeGame.*; // ⚡ 对接 DDS: PlayerInfo, PlayerMove, GameSetting
+import com.snakegame.dds.transport.DdsBridge;
 import com.zrdds.infrastructure.LongSeq;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.*;
 
 public class GameController {
     private GameService gameService;
     private Map<Integer, String> latestInputs;
     private ScheduledExecutorService scheduler;
+    private final DdsBridge bridge;
+
     private int tickCounter = 0;
+    private long gameStartTime;
+    private long gameDurationMillis = 10 * 60 * 1000; // 游戏总时长，例如 10 分钟
 
-
-    public GameController() {
+    public GameController(int domainId) {
         this.gameService = new GameService();
-        this.latestInputs = new ConcurrentHashMap<>();
+        this.latestInputs = new java.util.concurrent.ConcurrentHashMap<>();
+        this.bridge = new DdsBridge(domainId, this);
+        bridge.init(); // 启动 DDS
+        // 可选：把一个回调注入给 GameService
+        this.gameService.setCallbacks(new GameService.Callbacks() {
+            public void onFoodEaten(Snake s, Item item) { broadcastGetFood(s, item); }
+            public void onItemSpawned(Item item) { bridge.publishNewItem(item); }
+            public void onCollision(Collision c) { bridge.publishCollision(c); }
+        });
     }
-
-//    // DDS 订阅 SystemMsg
-//    public void subscribeSystemMsg(DdsSubscriber<SystemMsg> subscriber) {
-//        subscriber.subscribe(SystemMsg.class, this::onSystemMsgReceived);
-//    }
-//
-//    private void onSystemMsgReceived(SystemMsg msg) {
-//        switch (msg.msg_type) {
-//            case "START":
-//                // 前端发起 START
-//                List<PlayerInfo> players = parsePlayers(msg.content);
-//                GameSetting setting = parseGameSetting(msg.content);
-//                onStartGame(players, setting);
-//                break;
-//            case "EXIT":
-//                // 玩家加入/退出处理
-//        }
-//    }
 
     public void onStartGame(List<PlayerInfo> players, GameSetting setting) {
         // 1. 初始化游戏逻辑
         gameService.initGame(players, setting.grid_size, setting.grid_size);
+
+        // 记录游戏开始时间
+        gameStartTime = System.currentTimeMillis();
 
         // 2. 广播初始 GameState
         broadcastAllGameStates();
@@ -86,12 +82,54 @@ public class GameController {
         gameService.gameTick(new HashMap<>(latestInputs), spawnFoodThisTick);
         broadcastAllGameStates();
         broadcastLeaderboard();
+
+        // ===== 游戏结束判定 =====
+        long elapsed = System.currentTimeMillis() - gameStartTime;
+        boolean timeOver = elapsed >= gameDurationMillis;
+
+        int aliveCount = 0;
+        Snake lastAlive = null;
+        Snake topScoreSnake = null;
+        int maxScore = Integer.MIN_VALUE;
+
+        for (Snake s : gameService.getMap().snakes.values()) {
+            if (s.alive) {
+                aliveCount++;
+                lastAlive = s;
+            }
+            if (s.score > maxScore) {
+                maxScore = s.score;
+                topScoreSnake = s;
+            }
+        }
+
+        if (timeOver || aliveCount <= 1) {
+            String result;
+            if (aliveCount == 1 && lastAlive != null) {
+                // 只剩一条蛇
+                result = lastAlive.nickname + " 胜利！";
+            } else if (timeOver && aliveCount > 1 && topScoreSnake != null) {
+                // 时间到但有多条蛇
+                result = topScoreSnake.nickname + " 胜利！";
+            } else {
+                result = "平局！";
+            }
+
+            System.out.println("[GameController] 游戏结束: " + result);
+
+            // 广播 END 消息
+            broadcastSystemMsg("END", result);
+
+            // 结束游戏
+            onEndGame();
+        }
     }
 
     // DDS 回调：结束游戏
     public void onEndGame() {
         scheduler.shutdownNow();
         gameService.endGame();
+        bridge.shutdown();
     }
 
     // 广播所有玩家的 GameState
@@ -139,17 +177,18 @@ public class GameController {
             System.out.println(sb.toString());
 
             // ⚡ 调用 DDS 发布接口
-            // ddsPublisher.publishGameState(gs);
+            bridge.publishGameState(gs);
         }
     }
 
     // 广播地图上所有 Item
     private void broadcastAllItems() {
         for (Item item : gameService.getMap().items.values()) {
-            // ⚡ 调用 DDS 发布接口
-            // ddsPublisher.publishItem(item);
             System.out.println("[DDS] 广播 Item: id=" + item.item_id + " type=" + item.item_type.ordinal() +
                     " x=" + item.x + " y=" + item.y);
+
+            // ⚡ 调用 DDS 发布接口
+            bridge.publishNewItem(item);
         }
     }
 
@@ -185,6 +224,32 @@ public class GameController {
         }
 
         // ⚡ TODO: 调用 DDS 接口发送 Leaderboard
-        // ddsPublisher.publishLeaderboard(lb);
+        bridge.publishLeaderboard(lb);
+    }
+
+    private void broadcastGetFood(Snake s, Item item) {
+        GetFood gf = new GetFood();
+        gf.player_id = s.playerId;
+        gf.item_id   = item.item_id;
+        gf.item_type = item.item_type;
+        gf.x = item.x; gf.y = item.y;
+        bridge.publishGetFood(gf);
+    }
+
+    public void broadcastSystemMsg(String type, String content) {
+        // 创建 SystemMsg
+        SystemMsg msg = new SystemMsg();
+        msg.msg_type = type;
+        msg.content = content;
+        msg.timestamp = (int)System.currentTimeMillis();
+
+        // 打印调试信息
+        System.out.println("[broadcastSystemMsg] Sending SystemMsg -> type: "
+                + msg.msg_type + ", content: "
+                + msg.content + ", timestamp: "
+                + msg.timestamp);
+
+        // 通过 dds 发布
+        bridge.publishSystemMsg(msg);
     }
 }

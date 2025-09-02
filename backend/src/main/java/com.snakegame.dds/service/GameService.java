@@ -12,6 +12,16 @@ public class GameService {
     private ItemService itemService;
     private CollisionService collisionService;
 
+    // GameService 内新增
+    public static interface Callbacks {
+        void onFoodEaten(Snake s, Item item);
+        void onItemSpawned(Item item);
+        void onCollision(Collision c);
+    }
+    private Callbacks callbacks;
+    public void setCallbacks(Callbacks cb){ this.callbacks = cb; }
+
+
     // 初始化游戏
     // ⚡ 对接 DDS: PlayerInfo, GameSetting
     public void initGame(List<PlayerInfo> players, int width, int height) {
@@ -103,33 +113,13 @@ public class GameService {
         for (int i = 0; i < count; i++) {
             Item item = itemService.spawnRandomItem(map.width, map.height, map);
             map.addItem(item);
-            broadcastNewItem(item);
+
+            System.out.println("[DDS] 广播新生成 Item: id=" + item.item_id +
+                    " type=" + item.item_type + " x=" + item.x + " y=" + item.y);
+            // ⚡ 调用 DDS 广播食物
+            if (callbacks != null) callbacks.onItemSpawned(item);
         }
         System.out.println("[GameService] 生成了 " + count + " 个食物");
-    }
-
-    private void broadcastNewItem(Item item) {
-        System.out.println("[DDS] 广播新生成 Item: id=" + item.item_id +
-                " type=" + item.item_type + " x=" + item.x + " y=" + item.y);
-
-        // ⚡ 调用 DDS 发布接口
-        // ddsPublisher.publishItem(item);
-    }
-
-    private void broadcastGetFood(int playerId, Item item) {
-        GetFood gf = new GetFood();
-        gf.player_id = playerId;
-        gf.item_id = item.item_id;
-        gf.item_type = item.item_type;
-        gf.x = item.x;
-        gf.y = item.y;
-
-        System.out.println("[DDS] 广播 GetFood: player=" + playerId +
-                " item=" + item.item_id + " type=" + item.item_type +
-                " x=" + item.x + " y=" + item.y);
-
-        // ⚡ 调用 DDS 发布接口
-        // ddsPublisher.publishGetFood(gf);
     }
 
     private void moveSnakes(Map<Integer, String> inputs) {
@@ -210,7 +200,11 @@ public class GameService {
                     if (snake.score < 0) snake.score = 0; // 避免负分
 
                     // ⚡ 只广播这个玩家获取的食物
-                    broadcastGetFood(snake.playerId, item);
+                    System.out.println("[DDS] 广播 GetFood: player=" + snake.playerId +
+                            " item=" + item.item_id + " type=" + item.item_type +
+                            " x=" + item.x + " y=" + item.y);
+
+                    if (callbacks != null) callbacks.onFoodEaten(snake, item);
 
                     // 移除已吃的道具
                     it.remove();
@@ -256,10 +250,10 @@ public class GameService {
             col.collisions.append(true);
         }
 
-        System.out.println("[DDS] 广播 Collision: 死亡人数=" + deadPlayers.size());
-
         // ⚡ TODO: 调用 DDS 接口发送 Collision
-        // ddsPublisher.publishCollision(col);
+        if (callbacks != null) callbacks.onCollision(col);
+
+        System.out.println("[DDS] 广播 Collision: 死亡人数=" + deadPlayers.size());
     }
 
     public GameMap getMap() {
