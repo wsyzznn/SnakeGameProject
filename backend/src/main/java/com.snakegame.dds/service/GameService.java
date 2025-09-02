@@ -70,9 +70,6 @@ public class GameService {
         System.out.println("[GameService] 游戏初始化完成: 玩家=" + players.size());
     }
 
-
-
-
     // 游戏循环
     public void gameTick(Map<Integer, String> playerInputs, boolean spawnFoodThisTick) {
         moveSnakes(playerInputs);
@@ -106,8 +103,33 @@ public class GameService {
         for (int i = 0; i < count; i++) {
             Item item = itemService.spawnRandomItem(map.width, map.height, map);
             map.addItem(item);
+            broadcastNewItem(item);
         }
         System.out.println("[GameService] 生成了 " + count + " 个食物");
+    }
+
+    private void broadcastNewItem(Item item) {
+        System.out.println("[DDS] 广播新生成 Item: id=" + item.item_id +
+                " type=" + item.item_type + " x=" + item.x + " y=" + item.y);
+
+        // ⚡ 调用 DDS 发布接口
+        // ddsPublisher.publishItem(item);
+    }
+
+    private void broadcastGetFood(int playerId, Item item) {
+        GetFood gf = new GetFood();
+        gf.player_id = playerId;
+        gf.item_id = item.item_id;
+        gf.item_type = item.item_type;
+        gf.x = item.x;
+        gf.y = item.y;
+
+        System.out.println("[DDS] 广播 GetFood: player=" + playerId +
+                " item=" + item.item_id + " type=" + item.item_type +
+                " x=" + item.x + " y=" + item.y);
+
+        // ⚡ 调用 DDS 发布接口
+        // ddsPublisher.publishGetFood(gf);
     }
 
     private void moveSnakes(Map<Integer, String> inputs) {
@@ -187,7 +209,10 @@ public class GameService {
                     snake.score += scoreChange;
                     if (snake.score < 0) snake.score = 0; // 避免负分
 
-                    // 移除已吃的道具，并生成新道具
+                    // ⚡ 只广播这个玩家获取的食物
+                    broadcastGetFood(snake.playerId, item);
+
+                    // 移除已吃的道具
                     it.remove();
                     break; // 一个道具只能被一条蛇吃掉
                 }

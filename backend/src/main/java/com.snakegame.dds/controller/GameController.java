@@ -85,7 +85,6 @@ public class GameController {
     public void onGameTick(boolean spawnFoodThisTick) {
         gameService.gameTick(new HashMap<>(latestInputs), spawnFoodThisTick);
         broadcastAllGameStates();
-        broadcastAllItems();
         broadcastLeaderboard();
     }
 
@@ -143,9 +142,6 @@ public class GameController {
             // ddsPublisher.publishGameState(gs);
         }
     }
-
-
-
 
     // 广播地图上所有 Item
     private void broadcastAllItems() {
