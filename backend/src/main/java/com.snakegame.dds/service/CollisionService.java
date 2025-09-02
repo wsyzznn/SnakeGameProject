@@ -42,6 +42,7 @@ public class CollisionService {
                 if (other.playerId == s.playerId || !other.alive) continue;
                 if (other.body.contains(head)) {
                     dead.add(s.playerId);
+                    other.score += 15;                       // 被撞的蛇加分
                     break;
                 }
             }

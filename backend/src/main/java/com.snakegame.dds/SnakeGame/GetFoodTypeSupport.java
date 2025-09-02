@@ -242,7 +242,7 @@ public class GetFoodTypeSupport extends TypeSupport {
             return null;
         }
 
-        memberTc = (TypeCodeImpl)SnakeGame.ItemTypeTypeSupport.get_typecode();
+        memberTc = (TypeCodeImpl)ItemTypeTypeSupport.get_typecode();
         if (memberTc == null){
             System.out.println("Get Member item_type TypeCode failed.");
             factory.delete_TC(s_typeCode);

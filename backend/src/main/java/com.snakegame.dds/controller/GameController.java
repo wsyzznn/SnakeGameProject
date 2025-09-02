@@ -50,7 +50,10 @@ public class GameController {
         // 3. 广播初始道具
         broadcastAllItems();
 
-        // 4. 启动主循环（定时器驱动）
+        // 4. 广播初始排行榜
+        broadcastLeaderboard();
+
+        // 5. 启动主循环（定时器驱动）
         startGameLoop(setting);
     }
 
@@ -97,25 +100,52 @@ public class GameController {
         for (Snake s : gameService.getMap().snakes.values()) {
             if (!s.alive) continue;
 
+            // 打印原始 body
+            System.out.println("Init Snake " + s.nickname + " body: " + s.body);
+
             GameState gs = new GameState();
             gs.player_id = s.playerId;
             gs.length = s.body.size();
             gs.score = s.score;
+
             gs.snake_x = new LongSeq();
             gs.snake_y = new LongSeq();
 
-            int i = 0;
+            // ⚡ 预分配空间
+            gs.snake_x.maximum(s.body.size());
+            gs.snake_y.maximum(s.body.size());
+
             for (Point p : s.body) {
                 gs.snake_x.append(p.x);
                 gs.snake_y.append(p.y);
-                i++;
             }
+
+            // 打印完整状态
+            StringBuilder sb = new StringBuilder();
+            sb.append("[DDS] 广播 GameState\n");
+            sb.append("  player_id = ").append(gs.player_id).append("\n");
+            sb.append("  nickname  = ").append(s.nickname).append("\n");
+            sb.append("  score     = ").append(gs.score).append("\n");
+            sb.append("  length    = ").append(gs.length).append("\n");
+            sb.append("  body      = ");
+
+            for (int i = 0; i < gs.snake_x.length(); i++) {
+                sb.append("(")
+                        .append(gs.snake_x.get_at(i))
+                        .append(",")
+                        .append(gs.snake_y.get_at(i))
+                        .append(") ");
+            }
+
+            System.out.println(sb.toString());
 
             // ⚡ 调用 DDS 发布接口
             // ddsPublisher.publishGameState(gs);
-            System.out.println("[DDS] 广播 GameState: player=" + s.nickname + " length=" + gs.length);
         }
     }
+
+
+
 
     // 广播地图上所有 Item
     private void broadcastAllItems() {
@@ -144,6 +174,8 @@ public class GameController {
             sortedList.add(e);
         }
         sortedList.sort((a, b) -> Integer.compare(b.score, a.score));
+
+        lb.entries.maximum(sortedList.size());
 
         // 填充 DDS 序列
         for (LeaderboardEntry e : sortedList) {

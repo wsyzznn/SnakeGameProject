@@ -23,20 +23,41 @@ public class GameService {
         Set<String> occupied = new HashSet<>();
 
         Random rand = new Random();
+        int initLength = 3; // 初始蛇长度
+
+        String[] directions = {"UP", "DOWN", "LEFT", "RIGHT"};
+
         for (PlayerInfo p : players) {
-            int x, y;
+            int x = 0, y = 0;
             String key;
-            // 循环直到生成一个不重复的位置
+            String dir = directions[rand.nextInt(directions.length)]; // 随机方向
+
+            // 循环直到生成一个不重复且预留空间的位置
             do {
-                x = rand.nextInt(width);
-                y = rand.nextInt(height);
+                switch (dir) {
+                    case "UP":
+                        x = rand.nextInt(width);
+                        y = rand.nextInt(height - initLength);  // 0 ~ height - initLength -1
+                        break;
+                    case "DOWN":
+                        x = rand.nextInt(width);
+                        y = rand.nextInt(height - initLength) + initLength - 1; // initLength-1 ~ height-1
+                        break;
+                    case "LEFT":
+                        x = rand.nextInt(width - initLength);
+                        y = rand.nextInt(height);
+                        break;
+                    case "RIGHT":
+                        x = rand.nextInt(width - initLength) + initLength - 1;
+                        y = rand.nextInt(height);
+                        break;
+                }
                 key = x + "," + y;
             } while (occupied.contains(key));
 
             occupied.add(key);  // 标记该位置已占用
 
-            String dir = "RIGHT"; // 初始方向固定为向右
-            Snake snake = new Snake(p.player_id, p.nickname, p.color, new Point(x, y), dir, 3);
+            Snake snake = new Snake(p.player_id, p.nickname, p.color, new Point(x, y), dir, initLength);
             map.addSnake(snake);
         }
 
@@ -48,6 +69,8 @@ public class GameService {
 
         System.out.println("[GameService] 游戏初始化完成: 玩家=" + players.size());
     }
+
+
 
 
     // 游戏循环
@@ -125,12 +148,17 @@ public class GameService {
                 if (snake.getHead().x == item.x && snake.getHead().y == item.y) {
 
                     int growAmount = 0;
+                    int scoreChange = 0;
+
                     if (item.item_type == ItemType.APPLE) {
                         growAmount = 1;
+                        scoreChange = 10;
                     } else if (item.item_type == ItemType.GOOD_FOOD) {
                         growAmount = 2;
+                        scoreChange = 20;
                     } else if (item.item_type == ItemType.BAD_FOOD) {
                         growAmount = -1;
+                        scoreChange = -5;
                     }
 
                     if (growAmount > 0) {
@@ -154,6 +182,11 @@ public class GameService {
                             snake.body.removeLast();
                         }
                     }
+
+                    // 更新积分
+                    snake.score += scoreChange;
+                    if (snake.score < 0) snake.score = 0; // 避免负分
+
                     // 移除已吃的道具，并生成新道具
                     it.remove();
                     break; // 一个道具只能被一条蛇吃掉
@@ -167,6 +200,7 @@ public class GameService {
             Snake s = map.snakes.get(pid);
             if (s != null) {
                 s.alive = false;
+                s.score = 0; // 死亡清空积分
                 System.out.println("[GameService] 玩家死亡: " + s.nickname);
 
                 // 💡 蛇身掉落食物：每隔 3 格生成一个 APPLE
@@ -189,9 +223,12 @@ public class GameService {
         col.player_ids = new LongSeq();
         col.collisions = new BooleanSeq();
 
+        col.player_ids.maximum(deadPlayers.size());
+        col.collisions.maximum(deadPlayers.size());
+
         for (int i = 0; i < deadPlayers.size(); i++) {
-            col.player_ids.set_at(i, deadPlayers.get(i));
-            col.collisions.set_at(i, true);
+            col.player_ids.append(deadPlayers.get(i));
+            col.collisions.append(true);
         }
 
         System.out.println("[DDS] 广播 Collision: 死亡人数=" + deadPlayers.size());
