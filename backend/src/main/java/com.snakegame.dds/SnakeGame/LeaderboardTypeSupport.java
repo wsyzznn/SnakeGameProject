@@ -51,7 +51,7 @@ public class LeaderboardTypeSupport extends TypeSupport {
         int entriesTmpLen = sample.entries.length();
         System.out.println("sample.entries.length():" +entriesTmpLen);
         for (int i = 0; i < entriesTmpLen; ++i){
-            SnakeGame.LeaderboardEntryTypeSupport.get_instance().print_sample(sample.entries.get_at(i));
+            LeaderboardEntryTypeSupport.get_instance().print_sample(sample.entries.get_at(i));
         }
         return 0;
     }
@@ -93,8 +93,8 @@ public class LeaderboardTypeSupport extends TypeSupport {
         int entriesLen = sample.entries.length();
         if (entriesLen != 0){
             for (int i = 0; i < entriesLen; ++i){
-                SnakeGame.LeaderboardEntry curEle = sample.entries.get_at(i);
-                offset += SnakeGame.LeaderboardEntryTypeSupport.get_instance().get_sizeI(curEle, cdr, offset);
+                LeaderboardEntry curEle = sample.entries.get_at(i);
+                offset += LeaderboardEntryTypeSupport.get_instance().get_sizeI(curEle, cdr, offset);
             }
         }
 
@@ -109,7 +109,7 @@ public class LeaderboardTypeSupport extends TypeSupport {
             return -2;
         }
         for (int i = 0; i < sample.entries.length(); ++i){
-            if (SnakeGame.LeaderboardEntryTypeSupport.get_instance().serializeI(sample.entries.get_at(i),cdr) < 0){
+            if (LeaderboardEntryTypeSupport.get_instance().serializeI(sample.entries.get_at(i),cdr) < 0){
                 System.out.println("serialize sample.entriesfailed.");
                 return -2;
             }
@@ -128,9 +128,9 @@ public class LeaderboardTypeSupport extends TypeSupport {
             System.out.println("Set maxiumum member sample.entries failed.");
             return -3;
         }
-        SnakeGame.LeaderboardEntry tmpentries = new SnakeGame.LeaderboardEntry();
+        LeaderboardEntry tmpentries = new LeaderboardEntry();
         for (int i = 0; i < sample.entries.length(); ++i){
-            if (SnakeGame.LeaderboardEntryTypeSupport.get_instance().deserializeI(tmpentries, cdr) < 0){
+            if (LeaderboardEntryTypeSupport.get_instance().deserializeI(tmpentries, cdr) < 0){
                 System.out.println("deserialize sample.entries failed.");
                 return -2;
             }
@@ -172,7 +172,7 @@ public class LeaderboardTypeSupport extends TypeSupport {
         TypeCodeImpl memberTc = new TypeCodeImpl();
         TypeCodeImpl eleTc = new TypeCodeImpl();
 
-        memberTc = (TypeCodeImpl)SnakeGame.LeaderboardEntryTypeSupport.get_instance().get_typecode();
+        memberTc = (TypeCodeImpl)LeaderboardEntryTypeSupport.get_instance().get_typecode();
         if (memberTc != null)
         {
             memberTc = factory.create_sequence_TC(255, memberTc);

@@ -5,7 +5,9 @@ import com.zrdds.infrastructure.StatusKind;
 import com.zrdds.domain.DomainParticipant;
 import com.zrdds.domain.DomainParticipantFactory;
 import com.zrdds.publication.Publisher;
+import com.zrdds.publication.DataWriter;
 import com.zrdds.subscription.Subscriber;
+import com.zrdds.subscription.DataReader;
 import com.zrdds.topic.Topic;
 
 
@@ -50,4 +52,27 @@ public class DDSConfig {
                 StatusKind.STATUS_MASK_NONE
         );
     }
+
+    // 创建 DataWriter
+    public static DataWriter createDataWriter(Publisher publisher, Topic topic) {
+        return publisher.create_datawriter(
+                topic,
+                Publisher.DATAWRITER_QOS_DEFAULT,
+                null,
+                StatusKind.STATUS_MASK_NONE
+        );
+    }
+
+
+    // 创建 DataReader
+    public static DataReader createDataReader(Subscriber subscriber, Topic topic) {
+        return subscriber.create_datareader(
+                topic,
+                Subscriber.DATAREADER_QOS_DEFAULT,
+                null,
+                StatusKind.STATUS_MASK_ALL
+        );
+    }
+
+
 }
