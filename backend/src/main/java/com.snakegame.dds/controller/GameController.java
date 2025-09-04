@@ -16,6 +16,8 @@ public class GameController {
     private ScheduledExecutorService scheduler;
     private final DdsBridge bridge;
 
+    private volatile boolean ended = false;
+
     private int tickCounter = 0;
     private long gameStartTime;
     private long gameDurationMillis = 10 * 60 * 1000; // 游戏总时长，例如 10 分钟
@@ -74,6 +76,7 @@ public class GameController {
     public void onPlayerMove(PlayerMove move) {
         if (move != null) {
             latestInputs.put(move.player_id, move.direction);
+            //System.out.println(move.player_id + " " + move.direction);
         }
     }
 
@@ -115,11 +118,9 @@ public class GameController {
                 result = "平局！";
             }
 
-            System.out.println("[GameController] 游戏结束: " + result);
-
-            // 广播 END 消息
+            //System.out.println("[GameController] 游戏结束: " + result);
+            //广播 END 消息
             broadcastSystemMsg("END", result);
-
             // 结束游戏
             onEndGame();
         }
@@ -127,9 +128,25 @@ public class GameController {
 
     // DDS 回调：结束游戏
     public void onEndGame() {
-        scheduler.shutdownNow();
-        gameService.endGame();
+        if (ended) return;   // 已经结束，直接返回
+        ended = true;
+
+        // 停止 scheduler，等待任务结束
+        if (scheduler != null) {
+            scheduler.shutdown(); // 不直接 shutdownNow
+            try {
+                if (!scheduler.awaitTermination(1, TimeUnit.SECONDS)) {
+                    scheduler.shutdownNow(); // 超时才强制中断
+                }
+            } catch (InterruptedException e) {
+                scheduler.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+        }
         bridge.shutdown();
+
+        System.out.println("[GameController] Shutdown complete.");
+
     }
 
     // 广播所有玩家的 GameState
@@ -138,7 +155,7 @@ public class GameController {
             if (!s.alive) continue;
 
             // 打印原始 body
-            System.out.println("Init Snake " + s.nickname + " body: " + s.body);
+            //System.out.println("Init Snake " + s.nickname + " body: " + s.body);
 
             GameState gs = new GameState();
             gs.player_id = s.playerId;
@@ -174,7 +191,7 @@ public class GameController {
                         .append(") ");
             }
 
-            System.out.println(sb.toString());
+            //System.out.println(sb.toString());
 
             // ⚡ 调用 DDS 发布接口
             bridge.publishGameState(gs);
@@ -184,8 +201,8 @@ public class GameController {
     // 广播地图上所有 Item
     private void broadcastAllItems() {
         for (Item item : gameService.getMap().items.values()) {
-            System.out.println("[DDS] 广播 Item: id=" + item.item_id + " type=" + item.item_type.ordinal() +
-                    " x=" + item.x + " y=" + item.y);
+            //System.out.println("[DDS] 广播 Item: id=" + item.item_id + " type=" + item.item_type.ordinal() +
+                    //" x=" + item.x + " y=" + item.y);
 
             // ⚡ 调用 DDS 发布接口
             bridge.publishNewItem(item);
@@ -217,10 +234,10 @@ public class GameController {
             lb.entries.append(e);
         }
 
-        System.out.println("[DDS] 广播 Leaderboard:");
+        //System.out.println("[DDS] 广播 Leaderboard:");
         for (int i = 0; i < lb.entries.length(); i++) {
             LeaderboardEntry e = lb.entries.get_at(i); // 用 get_at() 访问
-            System.out.println(" - " + e.nickname + " 分数=" + e.score);
+            //System.out.println(" - " + e.nickname + " 分数=" + e.score);
         }
 
         // ⚡ TODO: 调用 DDS 接口发送 Leaderboard
@@ -244,10 +261,10 @@ public class GameController {
         msg.timestamp = (int)System.currentTimeMillis();
 
         // 打印调试信息
-        System.out.println("[broadcastSystemMsg] Sending SystemMsg -> type: "
-                + msg.msg_type + ", content: "
-                + msg.content + ", timestamp: "
-                + msg.timestamp);
+//        System.out.println("[broadcastSystemMsg] Sending SystemMsg -> type: "
+//                + msg.msg_type + ", content: "
+//                + msg.content + ", timestamp: "
+//                + msg.timestamp);
 
         // 通过 dds 发布
         bridge.publishSystemMsg(msg);

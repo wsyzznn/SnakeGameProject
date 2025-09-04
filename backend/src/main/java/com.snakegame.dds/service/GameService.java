@@ -69,6 +69,7 @@ public class GameService {
 
             Snake snake = new Snake(p.player_id, p.nickname, p.color, new Point(x, y), dir, initLength);
             map.addSnake(snake);
+            //System.out.println("snake:" + snake.playerId);
         }
 
         // 初始生成一些食物
@@ -77,7 +78,7 @@ public class GameService {
             map.addItem(item);
         }
 
-        System.out.println("[GameService] 游戏初始化完成: 玩家=" + players.size());
+        //System.out.println("[GameService] 游戏初始化完成: 玩家=" + players.size());
     }
 
     // 游戏循环
@@ -104,7 +105,7 @@ public class GameService {
 
     // 游戏结束
     public void endGame() {
-        System.out.println("[GameService] 游戏结束，排行榜已生成");
+        //System.out.println("[GameService] 游戏结束，排行榜已生成");
     }
 
     // =============== 私有方法 ===============
@@ -114,12 +115,12 @@ public class GameService {
             Item item = itemService.spawnRandomItem(map.width, map.height, map);
             map.addItem(item);
 
-            System.out.println("[DDS] 广播新生成 Item: id=" + item.item_id +
-                    " type=" + item.item_type + " x=" + item.x + " y=" + item.y);
+//            System.out.println("[DDS] 广播新生成 Item: id=" + item.item_id +
+//                    " type=" + item.item_type + " x=" + item.x + " y=" + item.y);
             // ⚡ 调用 DDS 广播食物
             if (callbacks != null) callbacks.onItemSpawned(item);
         }
-        System.out.println("[GameService] 生成了 " + count + " 个食物");
+        //System.out.println("[GameService] 生成了 " + count + " 个食物");
     }
 
     private void moveSnakes(Map<Integer, String> inputs) {
@@ -200,9 +201,9 @@ public class GameService {
                     if (snake.score < 0) snake.score = 0; // 避免负分
 
                     // ⚡ 只广播这个玩家获取的食物
-                    System.out.println("[DDS] 广播 GetFood: player=" + snake.playerId +
-                            " item=" + item.item_id + " type=" + item.item_type +
-                            " x=" + item.x + " y=" + item.y);
+//                    System.out.println("[DDS] 广播 GetFood: player=" + snake.playerId +
+//                            " item=" + item.item_id + " type=" + item.item_type +
+//                            " x=" + item.x + " y=" + item.y);
 
                     if (callbacks != null) callbacks.onFoodEaten(snake, item);
 
@@ -220,7 +221,7 @@ public class GameService {
             if (s != null) {
                 s.alive = false;
                 s.score = 0; // 死亡清空积分
-                System.out.println("[GameService] 玩家死亡: " + s.nickname);
+                //System.out.println("[GameService] 玩家死亡: " + s.nickname);
 
                 // 💡 蛇身掉落食物：每隔 3 格生成一个 APPLE
                 int interval = 3;
@@ -253,7 +254,7 @@ public class GameService {
         // ⚡ TODO: 调用 DDS 接口发送 Collision
         if (callbacks != null) callbacks.onCollision(col);
 
-        System.out.println("[DDS] 广播 Collision: 死亡人数=" + deadPlayers.size());
+        //System.out.println("[DDS] 广播 Collision: 死亡人数=" + deadPlayers.size());
     }
 
     public GameMap getMap() {

@@ -220,7 +220,6 @@ public class DdsBridge {
                     ViewStateKind.ANY_VIEW_STATE,
                     InstanceStateKind.ANY_INSTANCE_STATE);
             if (rc != ReturnCode_t.RETCODE_OK) return;
-
             for (int i = 0; i < infoSeq.length(); i++) {
                 SampleInfo si = infoSeq.get_at(i);
                 if (!si.valid_data) continue;
@@ -261,9 +260,21 @@ public class DdsBridge {
 
                     List<PlayerInfo> playerList = new ArrayList<>();
                     for (int j = 0; j < players.length(); j++) {
-                        playerList.add(players.get_at(j));
+                        PlayerInfo p = players.get_at(j);
+                        playerList.add(p);
+                        // 打印 PlayerInfo
+                        System.out.println("[DDS][PlayerInfo] id=" + p.player_id
+                                + " nickname=" + p.nickname
+                                + " color=" + p.color);
                     }
 
+                    // 打印 GameSetting
+                    if (setting != null) {
+                        System.out.println("[DDS][GameSetting] grid_size=" + setting.grid_size
+                                + " speed=" + setting.speed);
+                    } else {
+                        System.out.println("[DDS][GameSetting] <null>");
+                    }
                     controller.onStartGame(playerList, setting);
 
                 }
@@ -292,6 +303,7 @@ public class DdsBridge {
                     SampleStateKind.ANY_SAMPLE_STATE,
                     ViewStateKind.ANY_VIEW_STATE,
                     InstanceStateKind.ANY_INSTANCE_STATE);
+
             r.return_loan(dataSeq, infoSeq);
         }
         public void on_liveliness_changed(DataReader a, LivelinessChangedStatus b) {}
@@ -329,8 +341,16 @@ public class DdsBridge {
         PlayerInfoSeq ds = new PlayerInfoSeq();
         SampleInfoSeq is = new SampleInfoSeq();
         r.take(ds, is, -1, SampleStateKind.ANY_SAMPLE_STATE, ViewStateKind.ANY_VIEW_STATE, InstanceStateKind.ANY_INSTANCE_STATE);
+
+        PlayerInfoSeq copy = new PlayerInfoSeq();
+        copy.maximum(ds.length());
+        for (int i = 0; i < ds.length(); i++) {
+            if (!is.get_at(i).valid_data) continue;
+            copy.append(ds.get_at(i));
+        }
+
         r.return_loan(ds, is);
-        return ds;
+        return copy;
     }
     private static GameSetting readLastOnce(GameSettingDataReader r) {
         GameSettingSeq ds = new GameSettingSeq();
