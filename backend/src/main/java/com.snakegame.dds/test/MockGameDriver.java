@@ -1,4 +1,4 @@
-package com.snakegame.dds.mock;
+package com.snakegame.dds.test;
 
 import com.snakegame.dds.controller.GameController;
 import com.snakegame.dds.SnakeGame.*; // 里面有 GameSetting, GameState, Snake, 等

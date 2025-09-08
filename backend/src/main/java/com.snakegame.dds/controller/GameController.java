@@ -17,6 +17,8 @@ public class GameController {
     private final DdsBridge bridge;
 
     private volatile boolean ended = false;
+    public boolean isGameRunning = false;
+    public boolean singlePlayer;
 
     private int tickCounter = 0;
     private long gameStartTime;
@@ -36,6 +38,10 @@ public class GameController {
     }
 
     public void onStartGame(List<PlayerInfo> players, GameSetting setting) {
+        isGameRunning = true;
+        // 判断是否单人模式
+        singlePlayer = (players.size() == 1);
+
         // 1. 初始化游戏逻辑
         gameService.initGame(players, setting.grid_size, setting.grid_size);
 
@@ -106,7 +112,20 @@ public class GameController {
             }
         }
 
-        if (timeOver || aliveCount <= 1) {
+        if (singlePlayer) {
+            // 单人模式：在时间到或玩家死亡时结束
+            if (timeOver) {
+                String result = (topScoreSnake != null)
+                        ? (topScoreSnake.nickname + " 得分 " + topScoreSnake.score)
+                        : "游戏结束";
+                broadcastSystemMsg("END", result);
+                onEndGame();
+            } else if (aliveCount == 0) {
+                String result = "游戏失败";
+                broadcastSystemMsg("END", result);
+                onEndGame();
+            }
+        }else if (timeOver || aliveCount <= 1) {
             String result;
             if (aliveCount == 1 && lastAlive != null) {
                 // 只剩一条蛇
@@ -268,5 +287,9 @@ public class GameController {
 
         // 通过 dds 发布
         bridge.publishSystemMsg(msg);
+    }
+
+    public GameService getGameService() {
+        return gameService;
     }
 }

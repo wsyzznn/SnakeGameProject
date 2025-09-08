@@ -3,6 +3,7 @@ package com.snakegame.dds.transport;
 import com.snakegame.dds.SnakeGame.*; // 由 zrd dsgen 生成的类型、TypeSupport、Readers/Writers
 import com.snakegame.dds.controller.GameController;
 
+import com.snakegame.dds.model.Snake;
 import com.zrdds.domain.DomainParticipant;
 import com.zrdds.domain.DomainParticipantFactory;
 import com.zrdds.infrastructure.*;
@@ -16,6 +17,7 @@ import com.zrdds.subscription.DataReaderListener;
 import com.zrdds.topic.Topic;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class DdsBridge {
@@ -52,6 +54,9 @@ public class DdsBridge {
     private SystemMsgDataReader systemMsgReader;
     private PlayerInfoDataReader playerInfoReader;
     private GameSettingDataReader gameSettingReader;
+
+    // 本地维护的等待玩家列表（只在游戏开始前使用）
+    private final List<PlayerInfo> waitingPlayers = Collections.synchronizedList(new ArrayList<>());
 
     public DdsBridge(int domainId, GameController controller) {
         this.domainId = domainId;
@@ -255,14 +260,13 @@ public class DdsBridge {
                 SystemMsg m = dataSeq.get_at(i);
                 if ("START".equals(m.msg_type)) {
                     // 从缓存取 PlayerInfo 与 GameSetting
-                    PlayerInfoSeq players = readAllOnce(playerInfoReader);
+                    List<PlayerInfo> playerList;
+                    synchronized (waitingPlayers) {
+                        playerList = new ArrayList<>(waitingPlayers);
+                    }
                     GameSetting setting = readLastOnce(gameSettingReader);
 
-                    List<PlayerInfo> playerList = new ArrayList<>();
-                    for (int j = 0; j < players.length(); j++) {
-                        PlayerInfo p = players.get_at(j);
-                        playerList.add(p);
-                        // 打印 PlayerInfo
+                    for (PlayerInfo p : playerList) {
                         System.out.println("[DDS][PlayerInfo] id=" + p.player_id
                                 + " nickname=" + p.nickname
                                 + " color=" + p.color);
@@ -277,6 +281,57 @@ public class DdsBridge {
                     }
                     controller.onStartGame(playerList, setting);
 
+                }else if ("EXIT".equals(m.msg_type)) {
+                    String exitPlayerId = m.content; // content 存的是 player_id
+                    int pid = Integer.parseInt(exitPlayerId);
+                    System.out.println("[DDS][SystemMsg] EXIT received, id=" + exitPlayerId);
+
+                    // 游戏未开始：直接消费 DDS 缓存，重新写回（剔除退出玩家）
+                    if (!controller.isGameRunning) {
+                        // 游戏未开始：从 waitingPlayers 移除
+                        synchronized (waitingPlayers) {
+                            waitingPlayers.removeIf(p -> p.player_id == pid);
+                        }
+                        System.out.println("[DDS][SystemMsg] removed waiting player " + pid);
+
+                    } else {
+                        // 游戏进行中：在 snakes 中标记玩家已退出
+                        try {
+                            Snake s = controller.getGameService().getMap().snakes.get(pid);
+                            if (s != null && s.alive) {
+                                s.alive = false;
+                                System.out.println("[DDS][SystemMsg] player " + pid + " marked as exited");
+                            }
+
+                            // 2) 清理 DDS Reader 中的实例，避免 Participant 销毁时报错
+                            PlayerInfo dummy = new PlayerInfo();
+                            dummy.player_id = pid;
+                            InstanceHandle_t handle = playerInfoReader.lookup_instance(dummy);
+                            if (handle != null) {
+                                PlayerInfoSeq ds = new PlayerInfoSeq();
+                                SampleInfoSeq is = new SampleInfoSeq();
+                                playerInfoReader.take_instance(
+                                        ds, is,
+                                        ResourceLimitsQosPolicy.LENGTH_UNLIMITED, // 不限制样本数
+                                        handle,
+                                        SampleStateKind.ANY_SAMPLE_STATE,
+                                        ViewStateKind.ANY_VIEW_STATE,
+                                        InstanceStateKind.ANY_INSTANCE_STATE
+                                );
+                                playerInfoReader.return_loan(ds, is);
+                                System.out.println("[DDS][SystemMsg] cleaned PlayerInfo instance for exit player " + pid);
+                            }
+
+                            // 如果剩余 <=1 玩家，结束游戏
+                            long aliveCount = controller.getGameService().getMap().snakes.values()
+                                    .stream().filter(sn -> sn.alive).count();
+                            if ((aliveCount <= 1 && !controller.singlePlayer) || (aliveCount == 0 && controller.singlePlayer)) {
+                                controller.onEndGame();
+                            }
+                        } catch (NumberFormatException e) {
+                            System.err.println("[DDS][SystemMsg] EXIT invalid player_id=" + exitPlayerId);
+                        }
+                    }
                 }
             }
             r.return_loan(dataSeq, infoSeq);
@@ -290,21 +345,33 @@ public class DdsBridge {
         public void on_data_arrived(DataReader a, Object o, SampleInfo si) {}
     }
 
-    /** PlayerInfo：只负责缓存（TRANSIENT_LOCAL），真正使用在 START 时 */
+    /** PlayerInfo：维护本地等待玩家列表 */
     private class PlayerInfoListener implements DataReaderListener {
         public void on_data_available(DataReader dr) {
-            // 可选：也可以维护一份本地 List<PlayerInfo> 缓存
-            // 这里保持简单，不做立即处理，START 再统一读取
-            // 调用 read/take 是为了清空 NOT_READ 状态，避免累计
             PlayerInfoDataReader r = (PlayerInfoDataReader) dr;
             PlayerInfoSeq dataSeq = new PlayerInfoSeq();
             SampleInfoSeq infoSeq = new SampleInfoSeq();
-            r.read(dataSeq, infoSeq, -1,
-                    SampleStateKind.ANY_SAMPLE_STATE,
-                    ViewStateKind.ANY_VIEW_STATE,
-                    InstanceStateKind.ANY_INSTANCE_STATE);
+            try {
+                r.read(dataSeq, infoSeq, -1,
+                        SampleStateKind.ANY_SAMPLE_STATE,
+                        ViewStateKind.ANY_VIEW_STATE,
+                        InstanceStateKind.ANY_INSTANCE_STATE);
 
-            r.return_loan(dataSeq, infoSeq);
+                for (int i = 0; i < dataSeq.length(); i++) {
+                    if (!infoSeq.get_at(i).valid_data) continue;
+                    PlayerInfo p = dataSeq.get_at(i);
+
+                    synchronized (waitingPlayers) {
+                        boolean exists = waitingPlayers.stream().anyMatch(x -> x.player_id == p.player_id);
+                        if (!exists) {
+                            waitingPlayers.add(p);
+                            System.out.println("[DDS][PlayerInfo] Added player " + p.player_id + " (" + p.nickname + ")");
+                        }
+                    }
+                }
+            } finally {
+                r.return_loan(dataSeq, infoSeq);
+            }
         }
         public void on_liveliness_changed(DataReader a, LivelinessChangedStatus b) {}
         public void on_requested_deadline_missed(DataReader a, RequestedDeadlineMissedStatus b) {}
